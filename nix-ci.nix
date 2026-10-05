@@ -400,8 +400,6 @@
     "packages.x86_64-linux.crate-test-dependencies-vakint" = [
       "packages.x86_64-linux.cargoArtifacts"
       "packages.x86_64-linux.crate-deps-gammaloop-workspace-hack"
-      "packages.x86_64-linux.crate-test-dependencies-feynkit-tensor"
-      "packages.x86_64-linux.crate-test-dependencies-spenso"
     ];
     "packages.x86_64-linux.gammaloop-python-module" = [
       "packages.x86_64-linux.crate-test-dependencies-gammaloop-api"

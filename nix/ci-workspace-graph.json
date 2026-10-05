@@ -164,10 +164,7 @@
       "spenso-macros"
     ],
     "symbolica-utils": [],
-    "vakint": [
-      "feynkit-tensor",
-      "spenso"
-    ]
+    "vakint": []
   },
   "normal_dependency_features": {
     "alphal00p-docs-builder": {
@@ -437,10 +434,7 @@
       "spenso-macros": []
     },
     "symbolica-utils": {},
-    "vakint": {
-      "feynkit-tensor": [],
-      "spenso": []
-    }
+    "vakint": {}
   },
   "package_dirs": {
     "alphal00p-docs-builder": "crates/alphal00p-docs-builder",
@@ -529,7 +523,6 @@
       "feynkit-graph",
       "feynkit-kinematics",
       "feynkit-model",
-      "feynkit-tensor",
       "gammaloop-api",
       "gammaloop-tracing-filter",
       "gammaloop-tracing-filter-macros",
@@ -627,7 +620,6 @@
       "feynkit-graph",
       "feynkit-kinematics",
       "feynkit-model",
-      "feynkit-tensor",
       "gammaloop-tracing-filter",
       "gammaloop-tracing-filter-macros",
       "gammaloop-workspace-hack",
@@ -646,7 +638,6 @@
       "feynkit-graph",
       "feynkit-kinematics",
       "feynkit-model",
-      "feynkit-tensor",
       "gammaloop-api",
       "gammaloop-tracing-filter",
       "gammaloop-tracing-filter-macros",
@@ -676,7 +667,6 @@
       "feynkit-graph",
       "feynkit-kinematics",
       "feynkit-model",
-      "feynkit-tensor",
       "gammaloop-tracing-filter",
       "gammaloop-tracing-filter-macros",
       "gammaloop-workspace-hack",
@@ -733,18 +723,7 @@
       "symbolica-utils"
     ],
     "symbolica-utils": [],
-    "vakint": [
-      "feynkit-graph",
-      "feynkit-kinematics",
-      "feynkit-model",
-      "feynkit-tensor",
-      "gammaloop-workspace-hack",
-      "idenso",
-      "linnet",
-      "spenso",
-      "spenso-macros",
-      "symbolica-utils"
-    ]
+    "vakint": []
   },
   "resolved_test_dependencies": {
     "alphal00p-docs-builder": [
@@ -763,7 +742,6 @@
       "feynkit-graph",
       "feynkit-kinematics",
       "feynkit-model",
-      "feynkit-tensor",
       "gammaloop-api",
       "gammaloop-tracing-filter",
       "gammaloop-tracing-filter-macros",
@@ -864,7 +842,6 @@
       "feynkit-graph",
       "feynkit-kinematics",
       "feynkit-model",
-      "feynkit-tensor",
       "gammaloop-tracing-filter",
       "gammaloop-tracing-filter-macros",
       "gammaloop-workspace-hack",
@@ -883,7 +860,6 @@
       "feynkit-graph",
       "feynkit-kinematics",
       "feynkit-model",
-      "feynkit-tensor",
       "gammaloop-api",
       "gammaloop-tracing-filter",
       "gammaloop-tracing-filter-macros",
@@ -913,7 +889,6 @@
       "feynkit-graph",
       "feynkit-kinematics",
       "feynkit-model",
-      "feynkit-tensor",
       "gammaloop-tracing-filter",
       "gammaloop-tracing-filter-macros",
       "gammaloop-workspace-hack",
@@ -970,18 +945,7 @@
       "symbolica-utils"
     ],
     "symbolica-utils": [],
-    "vakint": [
-      "feynkit-graph",
-      "feynkit-kinematics",
-      "feynkit-model",
-      "feynkit-tensor",
-      "gammaloop-workspace-hack",
-      "idenso",
-      "linnet",
-      "spenso",
-      "spenso-macros",
-      "symbolica-utils"
-    ]
+    "vakint": []
   },
   "symbolica_normal_packages": [
     "alphal00p-docs-examples",
@@ -1202,10 +1166,7 @@
       "spenso-macros"
     ],
     "symbolica-utils": [],
-    "vakint": [
-      "feynkit-tensor",
-      "spenso"
-    ]
+    "vakint": []
   },
   "test_dependency_features": {
     "alphal00p-docs-builder": {
@@ -1485,10 +1446,7 @@
       "spenso-macros": []
     },
     "symbolica-utils": {},
-    "vakint": {
-      "feynkit-tensor": [],
-      "spenso": []
-    }
+    "vakint": {}
   },
   "workspace_root": "."
 }
