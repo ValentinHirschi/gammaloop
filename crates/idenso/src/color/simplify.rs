@@ -526,6 +526,11 @@ impl ColorAlgebraSimplifier {
 
     fn simplify_product(&self, product: AtomView) -> Option<Atom> {
         let product = ProductView::parse(product);
+        if self.settings.evaluate_traces
+            && let Some(zero) = Self::simplify_cubic_trace_contraction(&product)
+        {
+            return Some(zero);
+        }
         if product.len() < 2 {
             return None;
         }
@@ -1014,6 +1019,52 @@ impl ColorAlgebraSimplifier {
             return Some(product.excluding(&excluded) * replacement);
         }
 
+        None
+    }
+
+    fn simplify_cubic_trace_contraction(product: &ProductView) -> Option<Atom> {
+        for factor in &product.factors {
+            let Some(invariant) = &factor.symmetric_invariant else {
+                continue;
+            };
+            let [a, b, c] = invariant.args.as_slice() else {
+                continue;
+            };
+            let AtomView::Fun(rep) = invariant.rep else {
+                continue;
+            };
+            if rep.get_symbol() != CS.fundamental_rep || rep.get_nargs() != 1 {
+                continue;
+            }
+            let n = rep.iter().next()?.to_owned();
+            let dimension = n.pow(2) - Atom::num(1);
+            if ![a, b, c].iter().all(|arg| {
+                representation_slot(**arg, CS.adjoint_rep).is_some_and(|(d, _)| d == dimension)
+            }) {
+                continue;
+            }
+            // Contracting two slots of the symmetric cubic trace gives
+            // Tr(T^a T^a T^c) = C_F Tr(T^c) = 0. The metric may remain
+            // outside the trace projector after the other color reductions.
+            for (left, right) in [(a, b), (a, c), (b, c)] {
+                if left == right
+                    || product.factors.iter().any(|factor| {
+                        let AtomView::Fun(metric) = factor.atom else {
+                            return false;
+                        };
+                        if metric.get_symbol() != ETS.metric || metric.get_nargs() != 2 {
+                            return false;
+                        }
+                        let mut args = metric.iter();
+                        let first = args.next().unwrap();
+                        let second = args.next().unwrap();
+                        (first == *left && second == *right) || (first == *right && second == *left)
+                    })
+                {
+                    return Some(Atom::Zero);
+                }
+            }
+        }
         None
     }
 

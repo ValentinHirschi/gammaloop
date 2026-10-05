@@ -948,7 +948,7 @@ impl Graph {
         Ok(())
     }
 
-    fn validate_full_numerator_tensor_network(&self) -> Result<()> {
+    pub(crate) fn validate_full_numerator_tensor_network(&self) -> Result<()> {
         self.validate_spatial_momentum_convention()?;
         let full_num = self
             .numerator(&self.full_filter(), &self.empty_subgraph())
