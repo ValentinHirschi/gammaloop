@@ -69,7 +69,9 @@ anchor = "pub struct EvaluationResult {"
 # cross-section phase checks retain their documented meaning.
 # Reviewed 2026-09-25: sampling files now share process::sampling ownership;
 # only module/import paths changed, with numerical and persistence contracts unchanged.
-digest = "c8f88a5d709900a7f5c45dd5061e27be80238904"
+# No architecture impact 2026-10-04: only a statistics test moves into normal
+# CI and checks the existing microsecond display unit; production is unchanged.
+digest = "707cd302e3ed6b9c792c4263fb24e0b1b04e86f1"
 
 [[section.note.scope]]
 path = "crates/gammalooprs/src/integrands/process/mod.rs"
@@ -111,7 +113,9 @@ symbol = "gammalooprs::observables::EventProcessingRuntime"
 anchor = "pub struct EventProcessingRuntime {"
 # Reviewed 2026-09-17: State versioning, shared numerator definitions, sampling scale, event pair lists, and covariant cuts are documented in architecture-current.typ.
 # Reviewed 2026-09-23: Canonical sampling/native weighted results, selected loading, state v9, structured Python integration, and threshold event metadata are documented in architecture-current.typ.
-digest = "13634a816c1858ff5d75d2a06d0584e3b1db08c2"
+# Reviewed 2026-10-04: architecture-current.typ documents normalized unlabeled
+# continuous checkpoint metadata, with explicit labels and merge guards retained.
+digest = "ababa60e78cc323596cdf335006256023e2ad519"
 
 [[section.note.scope]]
 path = "crates/gammaloop-api/src/python.rs"
@@ -192,7 +196,9 @@ anchor = "mod render_ratatui;"
 # status flow and test assertions are unchanged.
 # Reviewed 2026-09-17: Documented stability medians, interrupted diagnostic previews, version-checked resume, and read-only output paths; completed-iteration checkpoint ownership is preserved.
 # Reviewed 2026-09-23: The dashboard documents signed/absolute view ownership, unchanged sampling/RNG behavior, and version-3 completed-iteration resume.
-digest = "99898153512e499c10534bb5bd31e2e42b63c662"
+# No architecture impact 2026-10-04: only the zero-reference test fixture and
+# its missing-reference positive control changed; integration behavior is unchanged.
+digest = "e9df9127071f40900896b069a7b0f1d0ed180c05"
 
 [[section.note]]
 id = "uv-renormalization"
@@ -298,7 +304,9 @@ anchor = "pub fn extract_templates<P: AsRef<Path>>"
 # extract_templates and its destination contract, is byte-identical to the
 # previous verified scope; only test coverage changed. The migration record's
 # current preface now names the style composer alongside its three adapters.
-digest = "040793fcba3b6f372a03187cfe82cfacc32fa953"
+# No architecture impact 2026-10-04: only the drawing test uses the public
+# mapper's flattened fields; template extraction and style ownership are unchanged.
+digest = "ae9fac7abff7bf002f6361cb389e74aeada7ebe5"
 
 [[section.note]]
 id = "gammaloop-drawing-architecture"
@@ -477,6 +485,16 @@ symbol = "idenso::shorthands::schoonschip::SchoonschipSettings"
 anchor = "pub struct SchoonschipSettings {"
 digest = "6924df328f8de538c789d2b07b312508e7c87534"
 
+
+[[section.note.scope]]
+path = "crates/idenso/src/color/simplify.rs"
+symbol = "idenso::color::simplify::ColorAlgebraSimplifier::simplify_cubic_trace_contraction"
+anchor = "fn simplify_cubic_trace_contraction(product: &ProductView) -> Option<Atom> {"
+# Reviewed 2026-10-05: the dimension-checked fundamental cubic trace rule
+# reduces exact color zeros inside the existing collected color payload;
+# momentum coefficients and unsupported invariant ranks remain factorized.
+digest = "00ac60a3ca200a2d23f23b7286371b059ea04ed6"
+
 [[section.note]]
 id = "idenso-form-color-dirac-source-map"
 title = "Idenso FORM color and Dirac source map"
@@ -566,11 +584,11 @@ title = "Vakint implementation architecture"
 summary = "Topology construction, canonicalization and tensor-reduction flow, backend selection, external-process ownership, persistence boundaries, invariants, and tests."
 source = "docs/architecture/vakint-architecture.typ"
 kind = "System architecture"
-status = "Implemented · reviewed 2026-10-01"
+status = "Implemented · reviewed 2026-10-04"
 lifecycle = "current"
 owner = "unassigned"
-reviewed_at = "2026-10-01"
-review_ref = "jj:xuoqsyop"
+reviewed_at = "2026-10-04"
+review_ref = "jj:twxxuvmo"
 products = ["vakint"]
 topics = ["topologies", "canonicalization", "tensor reduction", "FORM", "pySecDec"]
 review_triggers = ["crates/vakint/src/**", "crates/vakint/templates/**", "crates/vakint/form_src/**", "crates/vakint/build.rs", "crates/vakint/Cargo.toml"]
@@ -586,7 +604,9 @@ anchor = "pub struct Vakint {"
 # Vakint's explicitly registered Python surface and evaluation contracts are unchanged.
 # Reviewed 2026-09-17: Documented tensor projection, epsilon depth, opaque spin slots, and complex numerical parameters.
 # Reviewed 2026-10-01: Documented explicit zero masses, nonzero scale selection, withheld AlphaLoop massless representation, and numeric complex serialization.
-digest = "0dbb03e9c24cf4d26dfba1745c5c44fc19d3a736"
+# Reviewed 2026-10-04: vakint-architecture.typ documents the certified six-term
+# tadpole exception and structural, namespace-preserving Laurent extraction.
+digest = "11835407d531a05d9c52134e02d4cfceab32e209"
 
 [[section.note.scope]]
 path = "crates/vakint/src/topologies.rs"
@@ -867,8 +887,8 @@ kind = "Build engineering"
 status = "Current guide"
 lifecycle = "current"
 owner = "unassigned"
-reviewed_at = "2026-09-14"
-review_ref = "2a7401d884db70c522fd9504619412f01ebb2314"
+reviewed_at = "2026-10-05"
+review_ref = "jj:ourpwxqy"
 products = ["gammaloop"]
 topics = ["nix", "ci", "cache", "testing"]
 review_triggers = ["flake.nix", "flake.lock", "nix/**", "nix-ci.nix", "just/ci.just", ".github/scripts/ci-report.mjs", "CONTRIBUTING.typ"]
@@ -879,7 +899,9 @@ symbol = "CI checks, uploads and reporting commands"
 anchor = "ci-checks-and-upload:"
 # Reviewed 2026-09-25: the local suite now includes the licensed five-product
 # documentation check, matching the NixCI selection described in the guide.
-digest = "e2ff6282c56e44cb44ee45def2f538f8097a98f4"
+# Reviewed 2026-10-05: ci.typ documents temporary publication roots that
+# protect selected producer closures until the cache upload completes.
+digest = "6584deaadcaac160b4eb1069eec3be5786cbbd8b"
 
 [[section.note]]
 id = "nix-crane-cache-reuse"

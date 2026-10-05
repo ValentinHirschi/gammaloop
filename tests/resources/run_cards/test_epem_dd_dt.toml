@@ -39,6 +39,8 @@ inner_products = true
 
 [default_runtime_settings.general]
 evaluator_method = "SummedFunctionMap"
+# The stored pointwise and integrated references use natural units.
+integral_unit = "none"
 
 [default_runtime_settings.kinematics]
 e_cm = 1.0

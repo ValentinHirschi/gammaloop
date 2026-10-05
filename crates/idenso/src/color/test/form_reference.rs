@@ -572,7 +572,13 @@ fn simpli_contracts_projected_f_pair() {
         default_namespace = "spenso"
     );
 
-    assert_snapshot!(expr.simplify_color().to_bare_ordered_string(), @"CA*g(coad(dA,a),coad(dA,b))*invariant_environment(a,b)");
+    let result = expr.simplify_color();
+    let expected = parse_lit!(
+        cas(2, coad(dA)) * g(coad(dA, a), coad(dA, b)) * invariant_environment(a, b),
+        default_namespace = "spenso"
+    );
+    assert_eq!(result, expected);
+    assert_snapshot!(result.to_bare_ordered_string(), @"cas(2,coad(dA))*g(coad(dA,a),coad(dA,b))*invariant_environment(a,b)");
 }
 
 #[test]
@@ -582,7 +588,8 @@ fn tloop_qloop_size_3() {
     let result =
         parse_lit!(dA * TR * CF ^ 2 - 3 / 2 * dA * TR * CA * CF + 1 / 2 * dA * TR * CA ^ 2);
 
-    assert_snapshot!(result.to_bare_ordered_string(), @"-3/2*CA*CF*dA*TR+1/2*CA^2*dA*TR+CF^2*dA*TR");
+    assert_eq!(result, parse!("-3/2*CA*CF*dA*TR+1/2*CA^2*dA*TR+CF^2*dA*TR"));
+    assert_snapshot!(result.to_bare_ordered_string(), @"-3/2*CA*CF*TR*dA+1/2*CA^2*TR*dA+CF^2*TR*dA");
 }
 
 #[test]
@@ -600,7 +607,8 @@ fn tloop_qqloop_size_3() {
     test_initialize();
     let result = parse_lit!(-1 / 4 * dA * TR ^ 2 * CA + d33(R1, R2));
 
-    assert_snapshot!(result.to_bare_ordered_string(), @"-1/4*CA*dA*TR^2+d33(R1,R2)");
+    assert_eq!(result, parse!("-1/4*CA*dA*TR^2+d33(R1,R2)"));
+    assert_snapshot!(result.to_bare_ordered_string(), @"-1/4*CA*TR^2*dA+d33(R1,R2)");
 }
 
 #[test]
@@ -609,7 +617,8 @@ fn tloop_qgloop_size_3() {
     test_initialize();
     let result = parse_lit!(1𝑖 / 4 * dA * TR * CA ^ 2);
 
-    assert_snapshot!(result.to_bare_ordered_string(), @"1𝑖/4*CA^2*dA*TR");
+    assert_eq!(result, parse!("1𝑖/4*CA^2*dA*TR"));
+    assert_snapshot!(result.to_bare_ordered_string(), @"CA^2*TR*dA*𝑖/4");
 }
 
 #[test]
@@ -649,7 +658,13 @@ fn tloop_fiveq() {
             ^ 2 * CA + 1 / 2 * d3333(R1, R2, R3, R4) * TR * CA + d43333a(R5, R2, R1, R4, R3)
     );
 
-    assert_snapshot!(result.to_bare_ordered_string(), @"1/16*TR^4*d44(R1,A1)+1/192*CA^3*dA*TR^5+1/2*CA*TR*d3333(R1,R2,R3,R4)+1/4*CA^2*TR^3*d33(R1,R2)+1/8*CA*dA^(-1)*TR*d33(R1,R4)*d33(R2,R3)+3/8*CA*TR^2*d433(R3,R1,R2)+5/48*CA*dA^(-1)*TR*d33(R1,R2)*d33(R3,R4)+5/48*CA*dA^(-1)*TR*d33(R1,R3)*d33(R2,R4)+d43333a(R5,R2,R1,R4,R3)");
+    assert_eq!(
+        result,
+        parse!(
+            "1/16*TR^4*d44(R1,A1)+1/192*CA^3*dA*TR^5+1/2*CA*TR*d3333(R1,R2,R3,R4)+1/4*CA^2*TR^3*d33(R1,R2)+1/8*CA*dA^(-1)*TR*d33(R1,R4)*d33(R2,R3)+3/8*CA*TR^2*d433(R3,R1,R2)+5/48*CA*dA^(-1)*TR*d33(R1,R2)*d33(R3,R4)+5/48*CA*dA^(-1)*TR*d33(R1,R3)*d33(R2,R4)+d43333a(R5,R2,R1,R4,R3)"
+        )
+    );
+    assert_snapshot!(result.to_bare_ordered_string(), @"1/16*TR^4*d44(R1,A1)+1/192*CA^3*TR^5*dA+1/2*CA*TR*d3333(R1,R2,R3,R4)+1/4*CA^2*TR^3*d33(R1,R2)+1/8*CA*TR*d33(R1,R4)*d33(R2,R3)*dA^(-1)+3/8*CA*TR^2*d433(R3,R1,R2)+5/48*CA*TR*d33(R1,R2)*d33(R3,R4)*dA^(-1)+5/48*CA*TR*d33(R1,R3)*d33(R2,R4)*dA^(-1)+d43333a(R5,R2,R1,R4,R3)");
 }
 
 #[test]
@@ -719,7 +734,9 @@ fn su_fnan_n3() {
     test_initialize();
     let result = parse_lit!(-1𝑖 * a ^ 3 * nf * NF ^ 2 + 1𝑖 * a ^ 3 * nf * NF ^ 4);
 
-    assert_snapshot!(result.to_bare_ordered_string(), @"-1𝑖*NF^2*a^3*nf+1𝑖*NF^4*a^3*nf");
+    // Keep the exact reference independent of Symbolica's imaginary-unit printer.
+    assert_eq!(result, parse!("-1𝑖*NF^2*a^3*nf+1𝑖*NF^4*a^3*nf"));
+    assert_snapshot!(result.to_bare_ordered_string(), @"-𝑖*NF^2*a^3*nf+NF^4*a^3*nf*𝑖");
 }
 
 #[test]

@@ -1,13 +1,9 @@
 use super::utils::*;
 use super::*;
-use gammaloop_api::CLISettings;
 use gammaloop_api::commands::duplicate::DuplicateIntegrand;
-use gammaloop_api::session::CliSessionState;
-use gammaloop_api::state::{RunHistory, State};
 use gammalooprs::{
-    initialisation::initialise,
     momentum::{Dep, ExternalMomenta, Helicity, SignOrZero},
-    settings::{RuntimeSettings, runtime::kinematic::Externals},
+    settings::runtime::kinematic::Externals,
     utils::F,
 };
 use std::collections::BTreeMap;
@@ -78,10 +74,6 @@ fn benchmark_resource_path(name: &str) -> PathBuf {
         .join("tests/resources")
         .join("benchmarks")
         .join(name)
-}
-
-fn example_aa_aa_state_folder() -> PathBuf {
-    gammaloop_integration_tests::workspace_root().join("examples/cli/aa_aa/1L/state")
 }
 
 fn load_integrated_targets() -> Result<BTreeMap<(String, String, usize), IntegratedHistogramTarget>>
@@ -212,36 +204,6 @@ fn ensure_aa_aa_helicity_family(
         settings.general.mu_r = 20.0;
     }
     Ok(())
-}
-
-fn load_example_aa_aa_cli() -> Result<gammaloop_integration_tests::CLIState> {
-    initialise()?;
-    let state_folder = example_aa_aa_state_folder();
-
-    let mut state = State::load(state_folder.clone(), None, None)?;
-    state.activate_loaded_integrand_backends(true)?;
-
-    let mut cli_settings: CLISettings = toml::from_str(&std::fs::read_to_string(
-        state_folder.join("global_settings.toml"),
-    )?)?;
-    cli_settings.state.folder = state_folder.clone();
-    cli_settings.session.read_only_state = true;
-    cli_settings.global.n_cores.integrate = 1;
-    cli_settings.sync_settings()?;
-
-    let default_runtime_settings: RuntimeSettings = toml::from_str(&std::fs::read_to_string(
-        state_folder.join("default_runtime_settings.toml"),
-    )?)?;
-    let run_history = RunHistory::load(state_folder.join("run.toml"))?;
-    let mut cli = gammaloop_integration_tests::CLIState {
-        state,
-        cli_settings,
-        default_runtime_settings,
-        run_history,
-        session_state: CliSessionState::default(),
-    };
-    ensure_aa_aa_helicity_family(&mut cli, AA_AA_PROCESS, &AA_AA_HELICITIES_ALL)?;
-    Ok(cli)
 }
 
 fn set_aa_aa_kinematics(
@@ -455,7 +417,41 @@ mod failing {
     #[serial]
     fn aa_aa_integrated_graph_histogram_bins() -> Result<()> {
         let targets = load_integrated_targets()?;
-        let mut cli = load_example_aa_aa_cli()?;
+        let mut cli = setup_aa_aa_cli("aa_aa_integrated_graph_histogram_bins_generated")?;
+        // The historical saved state was generated with SM-default parameters;
+        // its targets use aEWM1=132.507, rather than the inspection card's 137.036.
+        cli.run_command("set model aEWM1=132.507")?;
+        {
+            use symbolica::atom::{Atom, AtomCore, Symbol};
+
+            let ee = cli.state.model.get_parameter("ee");
+            let alpha = cli.state.model.get_parameter("aEW");
+            let inverse_alpha = cli.state.model.get_parameter("aEWM1");
+            let ee_symbol: Atom = ee.name.into();
+            let alpha_symbol: Atom = alpha.name.into();
+            let inverse_alpha_symbol: Atom = inverse_alpha.name.into();
+            // Four photon-top vertices give exactly GC_2^4 =
+            // 256*pi^2/(81*aEWM1^2), with no residual coupling phase.
+            let coupling = cli
+                .state
+                .model
+                .get_coupling("GC_2")
+                .expression
+                .replace(ee_symbol.to_pattern())
+                .with(ee.expression.as_ref().unwrap().to_pattern())
+                .replace(alpha_symbol.to_pattern())
+                .with(alpha.expression.as_ref().unwrap().to_pattern());
+            assert_eq!(
+                coupling.pow(4) * inverse_alpha_symbol.pow(2),
+                Atom::num((256, 81)) * Atom::var(Symbol::PI).pow(2),
+            );
+        }
+        generate_aa_aa_helicity_family(
+            &mut cli,
+            AA_AA_PROCESS,
+            "symjit",
+            &AA_AA_HELICITIES_INTEGRATED,
+        )?;
         let workspace_root =
             get_tests_workspace_path().join("aa_aa_integrated_graph_histogram_bins");
 
@@ -509,9 +505,11 @@ mod failing {
                     discrete_histogram_bin_average_and_error(real_hist, graph_id as isize)?;
                 let (actual_im_avg, actual_im_err) =
                     discrete_histogram_bin_average_and_error(imag_hist, graph_id as isize)?;
+                // GammaLoop returns A=-i*M; the historical targets store M.
+                // Compare i*A, rotating the component errors with their means.
                 assert_histogram_estimate_compatible(
-                    actual_re_avg,
-                    actual_re_err,
+                    -actual_im_avg,
+                    actual_im_err,
                     target.re_avg,
                     target.re_err,
                     &format!(
@@ -519,8 +517,8 @@ mod failing {
                     ),
                 );
                 assert_histogram_estimate_compatible(
-                    actual_im_avg,
-                    actual_im_err,
+                    actual_re_avg,
+                    actual_re_err,
                     target.im_avg,
                     target.im_err,
                     &format!(
@@ -531,6 +529,7 @@ mod failing {
         }
 
         clean_test(&workspace_root);
+        clean_test(&cli.cli_settings.state.folder);
         Ok(())
     }
 }

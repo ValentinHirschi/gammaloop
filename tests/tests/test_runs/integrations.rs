@@ -203,7 +203,10 @@ mod failing {
             min_scale_exponent: 1.0,
             ..Default::default()
         });
-        // from Kaapo: m=1 muv=5 4.37688e-03 m=2 muv=5 	2.48100e-03	 m=3 muv=5 1.07231e-03
+        // Kaapo reference magnitudes: m=1 muv=5 4.37688e-03 m=2 muv=5 2.48100e-03 m=3 muv=5 1.07231e-03
+        // The complete literal numerator is one: L=2 and P=3 give a positive
+        // Wick phase. This certifies the signs, not the historical magnitudes;
+        // the current m=1 estimate differs by about 3 sigma at the original budget.
         cli.run_command("set model mass_scalar_1=1.0")?;
         let res = profile_cmd
             .run(&mut cli.state, &cli.cli_settings)?
@@ -211,11 +214,11 @@ mod failing {
         assert_eq!(res.pass_fail(-0.9).failed, 0);
         let integral_no_cache = integrate_command.run(&mut cli.state, &cli.cli_settings)?;
         assert!(
-            integral_no_cache.is_compatible_with_target(Complex::new_re(F(-4.37688e-03)), 1) // .result
-                                                                                             // .approx_eq(&Complex::new_re(F(-4.37688e-03)), &F(0.01))
+            integral_no_cache.is_compatible_with_target(Complex::new_re(F(4.37688e-03)), 1) // .result
+                                                                                            // .approx_eq(&Complex::new_re(F(4.37688e-03)), &F(0.01))
         );
 
-        // assert_snapshot!(format!("{integral_no_cache:.3}"),@"-4.359e-3");
+        // assert_snapshot!(format!("{integral_no_cache:.3}"),@"4.359e-3");
 
         cli.run_command("set model mass_scalar_1=2.0")?;
         let res = profile_cmd
@@ -223,8 +226,8 @@ mod failing {
             .unwrap_uv();
         assert_eq!(res.pass_fail(-0.9).failed, 0);
         let integral_no_cache = integrate_command.run(&mut cli.state, &cli.cli_settings)?;
-        // assert_snapshot!(format!("{integral_no_cache:.3}"),@"-2.474e-3");
-        assert!(integral_no_cache.is_compatible_with_target(Complex::new_re(F(-2.48100e-03)), 1));
+        // assert_snapshot!(format!("{integral_no_cache:.3}"),@"2.474e-3");
+        assert!(integral_no_cache.is_compatible_with_target(Complex::new_re(F(2.48100e-03)), 1));
 
         // cli.run_command("set model mass_scalar_1=3.0")?;
         // let integral_no_cache = integrate_command.run(&mut cli.state, &cli.cli_settings)?;
@@ -543,7 +546,11 @@ mod slow {
 
     #[test]
     fn test_integrate_dotted_bubble() -> Result<()> {
-        let target = Complex::new(F(0.0), F(0.002871504663657095));
+        // The two-point insertion differentiates one mass in the physical
+        // two-body phase space: dPhi_2/dm_1^2 = -1/(8*pi*s*beta).
+        // Here s=16 and both masses are one; the graph's complete numerator
+        // is one, as are its three (-i) vertices times three i propagators.
+        let target = Complex::new(F(-0.002871504663657095), F(0.0));
         let mut cli = get_test_cli(
             Some("dotted_bubble_generate.toml".into()),
             get_tests_workspace_path().join("dotted_bubble"),

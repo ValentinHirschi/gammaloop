@@ -85,8 +85,7 @@ normal form:
 - `GammaSimplifier` collects bispinor chains and applies dimension-gated Clifford, trace,
   projector, gamma5, and optional four-dimensional epsilon rules;
 - `ColorSimplifier` collects fundamental color lines, closes traces, applies generator,
-  structure-constant, Fierz, and Casimir rules, prunes antisymmetric zero terms, and iterates to a
-  fixed point;
+  structure-constant, Fierz, and Casimir rules, prunes color zeros, and iterates to a fixed point;
 - `EpsilonSimplifier` owns epsilon contractions and reductions;
 - `Cookable` replaces selected functions or representation-index payloads with compact symbols,
   either as readable flattened names or reversible Symbolica `UserData::Atom` encodings.
@@ -95,6 +94,13 @@ Settings objects are part of the semantics. Gamma ordering and trace evaluation,
 invariant substitutions, Schoonschip depth and traversal, and cooking source/tag filters can all
 change the result form. Reproducible callers should record the exact settings and the order in
 which independent rewrite families ran.
+
+With trace evaluation enabled, contracting two slots of a fundamental SU(N) symmetric cubic
+trace gives zero: the contraction reduces to a Casimir times the trace of one generator.
+The rule checks the fundamental dimension and all three adjoint dimensions, and accepts either
+repeated slots or an explicit adjoint metric. It leaves other representations, ranks, and custom
+tensors alone. Only the collected color payload is rewritten; accompanying momentum factors
+remain factorized.
 
 Most pattern engines use a local fixed-point loop: transform the current atom, compare it with
 the previous atom, and stop when unchanged. That guarantees termination only for the implemented

@@ -68,9 +68,11 @@ mod slow {
         }
         .run(&mut state.state, &state.cli_settings)?;
 
+        // The Born width is Nc*MZ*(|gL|^2+|gR|^2)/(24*pi), about
+        // 0.37204 GeV for V_79's GC_50+GC_58 and -2*GC_58 couplings.
         assert_approx_eq(
             &single_slot_integral(&result).result.re,
-            &F(-0.372),
+            &F(0.372),
             &F(1e-2),
         );
         Ok(())
@@ -206,26 +208,29 @@ mod failing {
 
         Ok(())
     }
+}
 
-    #[test]
-    fn trees() -> Result<()> {
-        let mut cli = get_test_cli(
-            Some("trees/qqx_aaa.toml".into()),
-            get_tests_workspace_path().join("qqx_aaa_tree"),
-            None,
-            false,
-        )?;
+#[test]
+fn trees() -> Result<()> {
+    let mut cli = get_test_cli(
+        Some("trees/qqx_aaa.toml".into()),
+        get_tests_workspace_path().join("qqx_aaa_tree"),
+        None,
+        false,
+    )?;
 
-        let (_, a) = Inspect {
-            process: None,
-            integrand_name: Some("default".to_string()),
-            ..Default::default()
-        }
-        .run(&mut cli)?;
-
-        assert_snapshot!(format!("{a:.8e}"),@"(1.4727604164105595e-4+-1.1503139369130214e-3i)");
-
-        clean_test(&cli.cli_settings.state.folder);
-        Ok(())
+    let (_, a) = Inspect {
+        process: None,
+        integrand_name: Some("default".to_string()),
+        ..Default::default()
     }
+    .run(&mut cli)?;
+
+    // Exact full-numerator equality with the UFO tree is checked in the
+    // core fixture test; this value comes from independent Weyl matrices.
+    let expected = Complex::new(-0.00014727604164105617, 0.0011503139369130225);
+    assert_complex_approx_eq(a, expected, "UFO tree reference");
+
+    clean_test(&cli.cli_settings.state.folder);
+    Ok(())
 }

@@ -794,6 +794,9 @@ histogram-level `sample_count` rather than explicit zero fills.
 Histogram snapshots therefore remain fully mergeable and
 re-constructible into live accumulator state. The Rust-facing histogram
 API exposes `merge(...)`, `merge_in_place(...)`, and `rebin(...)`.
+Restoring an unlabeled continuous histogram keeps the same empty label
+metadata as a fresh worker. Explicit labels and discrete-bin metadata
+remain intact, and the merge compatibility checks still reject mismatches.
 
 Current built-in quantities include:
 
