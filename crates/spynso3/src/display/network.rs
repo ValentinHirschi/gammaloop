@@ -6,7 +6,7 @@ use crate::{
 };
 use linnest::{
     TypstEdgeSpec, TypstEndpointSpec, TypstGraphSpec, TypstNodeSpec,
-    svg::{Config, Dash, Details, EdgeDrawing, NodeDrawing, Scene, Stroke},
+    svg::{Dash, Details, EdgeDrawing, NodeDrawing, Scene, Stroke},
 };
 use linnet::half_edge::involution::{Flow, HedgePair, Orientation};
 use pyo3::{
@@ -384,20 +384,10 @@ impl SpensoNet {
     pub(crate) fn render_graph(
         &self,
         py: Python<'_>,
-        config: Option<&Bound<'_, PyAny>>,
+        config: Option<&super::graph::PyRenderSettings>,
     ) -> PyResult<String> {
         let json = py.import("json")?;
-        let options = match config {
-            Some(config) => json.call_method1("dumps", (config,))?.extract::<String>()?,
-            None => "{}".into(),
-        };
-        let config =
-            Config::from_json(&options).map_err(pyo3::exceptions::PyValueError::new_err)?;
-        if !config.template_options.is_empty() {
-            return Err(pyo3::exceptions::PyValueError::new_err(
-                "tensor networks have no physics template options",
-            ));
-        }
+        let config = config.cloned().unwrap_or_default().config();
         let snapshot: Value = serde_json::from_str(
             &json
                 .call_method1("dumps", (self.render_snapshot(py)?,))?
@@ -633,6 +623,8 @@ pub(crate) fn svg_theme(svg: &str) -> String {
     );
     for (light, dark) in [
         ("#000000", "#e6ebf1"),
+        ("#3d2645", "#c8b6dc"),
+        ("#f5f5f5", "#2b3139"),
         ("#ffffff", "#1c2025"),
         ("#ffffff80", "#1c202580"),
         ("#666666", "#a6b3c5"),

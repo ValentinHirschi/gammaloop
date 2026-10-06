@@ -1,9 +1,12 @@
 """Community rendering uses no Python graph or Typst packages, including in WASM."""
 
 import builtins
+import importlib.abc
+import inspect
 import itertools
 import json
 import math
+import pydoc
 import re
 import sys
 import xml.etree.ElementTree as ET
@@ -15,6 +18,16 @@ from symbolica.core import S
 original_import = builtins.__import__
 
 
+class NoLinnet(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path, target=None):
+        if fullname.split(".")[0] == "linnet":
+            raise AssertionError("native graph analysis tried to import linnet")
+
+
+no_linnet = NoLinnet()
+sys.meta_path.insert(0, no_linnet)
+
+
 def import_without_renderers(name, globals=None, locals=None, fromlist=(), level=0):
     if name.split(".")[0] in {"typst", "linnet", "gammaloop"}:
         raise AssertionError(f"rendering tried to import {name}")
@@ -22,12 +35,87 @@ def import_without_renderers(name, globals=None, locals=None, fromlist=(), level
 
 
 builtins.__import__ = import_without_renderers
+
+
+def check_render_snapshot(value):
+    config = hep.RenderSettings(node_radius=5)
+    drawing = value.render(config=config)
+    assert isinstance(drawing, hep.DiagramRender)
+    svg, html = drawing.to_svg(), drawing.to_html()
+    ET.fromstring(svg)
+    assert svg in html
+    assert drawing._repr_svg_() == svg
+    assert drawing._repr_html_() == html
+    assert drawing._mime_() == ("text/html", html)
+    assert "#image(bytes(" in drawing.to_linnest()
+    assert repr(drawing) == "DiagramRender()"
+    # Settings are immutable and the completed drawing remains reusable.
+    try:
+        config.node_radius = 6
+    except AttributeError:
+        pass
+    else:
+        raise AssertionError("render settings must be immutable")
+    assert drawing.to_svg() == svg
+    assert drawing._repr_html_() == html
+    assert drawing._mime_() == ("text/html", html)
+
+
 try:
+    # Constructor signatures, documented properties, and early errors make
+    # settings discoverable without importing the optional graph bindings.
+    for settings_type in (hep.RenderSettings, hep.LayoutSettings, hep.StrokeStyle):
+        signature = inspect.signature(settings_type)
+        assert signature.parameters
+        assert all(
+            parameter.kind is inspect.Parameter.KEYWORD_ONLY
+            for parameter in signature.parameters.values()
+        )
+        assert repr(settings_type()) == f"{settings_type.__name__}()"
+    assert "node_radius" in pydoc.render_doc(hep.RenderSettings)
+    assert "impred_steps" in pydoc.render_doc(hep.LayoutSettings)
+    for construct, keywords in (
+        (hep.RenderSettings, {"node_radius": -1}),
+        (hep.RenderSettings, {"node_radius": float("nan")}),
+        (hep.LayoutSettings, {"layout_algo": "unknown"}),
+        (hep.LayoutSettings, {"tree_dx": 0}),
+        (hep.LayoutSettings, {"impred_step_scale": 0}),
+        (hep.LayoutSettings, {"impred_spacing": float("inf")}),
+        (hep.LayoutSettings, {"impred_external_max_points": 4}),
+        (hep.LayoutSettings, {"impred_contract_chord_ratio": 2}),
+        (hep.StrokeStyle, {"thickness": -1}),
+        (hep.StrokeStyle, {"dash": "unknown"}),
+    ):
+        try:
+            construct(**keywords)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"invalid settings accepted: {keywords}")
+    try:
+        hep.RenderSettings(show_partcle=False)
+    except TypeError:
+        pass
+    else:
+        raise AssertionError("misspelled setting names must be rejected")
     model = hep.Model.qcd()
     process = model.process(["g"], ["g"])
+    settings = hep.RenderSettings(
+        layout=hep.LayoutSettings(impred_steps=2),
+        node_fill="#112233",
+        node_stroke=hep.StrokeStyle(paint="#445566", thickness=2),
+        edge_stroke=hep.StrokeStyle(paint="#778899", dash="dashed"),
+    )
+    assert settings.layout.impred_steps == 2
+    assert settings.node_stroke.thickness == 2
+    styled = ET.fromstring(process.render(config=settings).to_svg())
+    assert any(node.get("fill") == "#112233" for node in styled.iter())
+    assert any(node.get("stroke") == "#445566" for node in styled.iter())
+    assert any(node.get("stroke") == "#778899" for node in styled.iter())
+    check_render_snapshot(process)
     assert "<svg" in process._repr_html_()
     inclusive = process.with_final_state_alternatives([["g"], ["u", "u~"]])
-    combined = ET.fromstring(inclusive.render())
+    combined = ET.fromstring(inclusive.render().to_svg())
     figures = combined.findall("{http://www.w3.org/2000/svg}svg")
     assert len(figures) == 2
     for figure in figures:
@@ -38,15 +126,17 @@ try:
     # Check the rendered SVG: seed-only checks miss pins lost during layout.
     ns = "{http://www.w3.org/2000/svg}"
     for incoming, outgoing, config in (
-        (["g"], ["g"], {}),
-        (["u", "u~"], ["u", "u~"], {}),
-        (["g", "g"], ["g", "g", "g"], {}),
-        (["u"] * 4, [], {}),
-        ([], ["u"] * 4, {}),
-        (["u", "u~"], ["u", "u~"], {"drawing": {"node_radius": 5}}),
-        (["u", "u~"], ["u", "u~"], {"style": {"node-style": {"radius": 6}}}),
+        (["g"], ["g"], hep.RenderSettings()),
+        (["u", "u~"], ["u", "u~"], hep.RenderSettings()),
+        (["g", "g"], ["g", "g", "g"], hep.RenderSettings()),
+        (["u"] * 4, [], hep.RenderSettings()),
+        ([], ["u"] * 4, hep.RenderSettings()),
+        (["u", "u~"], ["u", "u~"], hep.RenderSettings(node_radius=5)),
+        (["u", "u~"], ["u", "u~"], hep.RenderSettings(node_radius=6)),
     ):
-        drawing = ET.fromstring(model.process(incoming, outgoing).render(config=config))
+        drawing = ET.fromstring(
+            model.process(incoming, outgoing).render(config=config).to_svg()
+        )
         blob = drawing.find(ns + "circle")
         cx, cy, radius = (float(blob.attrib[k]) for k in ("cx", "cy", "r"))
         assert radius >= 45, radius
@@ -77,37 +167,221 @@ try:
             # One-sided processes surround the blob instead of occupying a side.
             xs, ys = zip(*tips)
             assert min(xs) < cx < max(xs) and min(ys) < cy < max(ys)
-    ET.fromstring(model.process([], []).render())
+    ET.fromstring(model.process([], []).render().to_svg())
     amplitude = process.generate_amplitude(loops=2, progress=None)
     assert len(amplitude.diagrams) == 48
     assert "<svg" in amplitude._repr_html_()
+    assert hep.DiagramRender is spenso.DiagramRender
+    assert hep.LayoutSettings is spenso.LayoutSettings
+    assert hep.StrokeStyle is spenso.StrokeStyle
+    assert inspect.signature(amplitude.render).parameters["max_diagrams"].default == 6
+    snapshot = amplitude.render(
+        config=hep.RenderSettings(edge_stroke=hep.StrokeStyle(paint="#123456")),
+        max_diagrams=2,
+        term_settings=spenso.DisplaySettings(show_dimensions=True),
+    )
+    assert isinstance(snapshot, hep.AmplitudeRender)
+    assert len(snapshot.diagrams) == 2
+    assert all(isinstance(item, hep.DiagramRender) for item in snapshot.diagrams)
+    assert all("#123456" in item.to_svg() for item in snapshot.diagrams)
+    assert snapshot._mime_() == ("text/html", snapshot.to_html())
+    assert snapshot._repr_html_() == snapshot.to_html()
+    assert "Showing 2 of 48" in snapshot.to_html()
+    assert snapshot.to_html().count('class="fk-row"') == 2
+    assert amplitude.render(max_diagrams=0).diagrams == []
+    assert len(amplitude.diagrams) == 48
+    small = hep.Amplitude(amplitude.diagrams[:2])
+    assert len(small.render(max_diagrams=None).diagrams) == 2
+    assert "Showing" not in small.render(max_diagrams=None).to_html()
+    try:
+        amplitude.render(max_diagrams=-1)
+    except OverflowError:
+        pass
+    else:
+        raise AssertionError("negative amplitude preview limit was accepted")
     diagram = amplitude.diagrams[0]
-    ET.fromstring(diagram.render())
+    check_render_snapshot(diagram)
+    check_render_snapshot(diagram.filter(edge=lambda edge: not edge.is_external))
+    config = hep.RenderSettings(show_particle=False, show_node_index=True)
+    basis = diagram.loop_momentum_basis
+    drawing = diagram.render(config=config, lmb=basis)
+    assert drawing.to_html() == diagram.to_html(config=config, lmb=basis)
+    assert drawing.to_linnest() == diagram.to_linnest(config=config, lmb=basis)
+    ET.fromstring(diagram.render().to_svg())
     ET.fromstring(
         diagram.render(
-            config={
-                "layouts": {"impred_steps": 2},
-                "template_options": {"show-particle": False},
-            }
-        )
+            config=hep.RenderSettings(
+                layout=hep.LayoutSettings(impred_steps=2), show_particle=False
+            )
+        ).to_svg()
     )
     expression = diagram.numerator_expression()
     assert isinstance(expression, spenso.TensorExpression)
     assert "<math" in expression.to_html()
     ET.fromstring(expression.to_svg())
     # The remaining graph types also render without Typst graph plugins.
-    ET.fromstring(process.render(config={"template_options": {"show-particle": False}}))
+    ET.fromstring(
+        process.render(config=hep.RenderSettings(show_particle=False)).to_svg()
+    )
     network = spenso.TensorNetwork(spenso.TensorExpression(S("direct_svg_test::x") + 2))
-    ET.fromstring(network.render(config={"title": "Native network"}))
+    ET.fromstring(
+        network.render(config=spenso.RenderSettings(title="Native network")).to_svg()
+    )
     assert "#image(bytes(" in network.to_linnest()
     scalar = hep.Model.phi3()
     cross = scalar.process(["phi"], ["phi", "phi"]).generate_cross_section(
         loops=1, max_vertices=2, allow_self_loops=True, progress=None
     )[0]
     original = cross.to_json()
+    # Selection and graph algorithms must work without the Python Linnet wheel,
+    # including partial half-edges, physics callbacks, and returned result objects.
+    full = cross.filter(edge=lambda edge: True)
+    assert full.to_json() == original
+    assert full.is_connected()
+    assert len(full.connected_components()) == 1
+    empty = cross.subgraph()
+    assert empty.is_connected() and empty.connected_components() == []
+    assert full.subgraph(empty).half_edge_indices() == []
+    assert (~empty).half_edge_indices() == full.half_edge_indices()
+    for half in cross.half_edges:
+        assert isinstance(half, hep.DiagramHalfEdge)
+        assert half.flow in {"source", "sink"}
+        selected = cross.subgraph(half_edges=[half.id])
+        assert selected.half_edge_indices() == [half.id]
+        assert selected.denominator_expression() == spenso.TensorExpression(1)
+        assert cross.filter(
+            half_edge=lambda item: item.id == half.id
+        ).half_edge_indices() == [half.id]
+        assert half.vertex in {half.edge.source, half.edge.target}
+    for vertex in cross.vertices:
+        assert (
+            cross.filter(node=lambda item: item.id == vertex.id).half_edge_indices()
+            == cross.subgraph(nodes=[vertex.id]).half_edge_indices()
+        )
+    internal = cross.filter(edge=lambda edge: not edge.is_external)
+    assert not internal.filter(edge=lambda edge: edge.is_external)
+    assert isinstance(internal.boundary(), hep.Subgraph)
+    assert isinstance(full.bridges(), hep.Subgraph)
+    cycles, covered = full.cycle_basis()
+    # Sewn initial-state carriers participate in structural cycles but are
+    # excluded from the physical momentum-basis loop count.
+    assert len(cycles) == len(full.edges) - len(full.vertices) + 1
+    assert all(isinstance(cycle, hep.Subgraph) for cycle in cycles)
+    assert covered.loop_count == 0 and covered.is_connected()
+    assert len(covered.edges) == len(full.vertices) - 1
+    forests = full.all_spanning_forests()
+    assert forests and all(
+        forest.is_connected() and len(forest.edges) == len(full.vertices) - 1
+        for forest in forests
+    )
+    assert full.all_bonds() and full.all_bonds(min_size=99) == []
+    partitions = full.all_cuts([0], [1])
+    assert partitions and all(isinstance(cut, hep.CutPartition) for cut in partitions)
+    for cut in partitions:
+        assert cut.source_side.vertices[0].id == 0
+        assert cut.target_side.vertices[0].id == 1
+        assert {half.edge.id for half in cut.boundary_left.half_edges} == {
+            half.edge.id for half in cut.boundary_right.half_edges
+        }
+        assert not (cut.boundary_left & cut.boundary_right)
+    for traverse in (full.depth_first_traverse, full.breadth_first_traverse):
+        tree = traverse(0)
+        assert isinstance(tree, hep.TraversalTree)
+        assert [vertex.id for vertex in tree.nodes] == [0, 1]
+        assert tree.parent(0) is None and tree.parent(1).id == 0
+        assert [vertex.id for vertex in tree.children(0)] == [1]
+        assert [vertex.id for vertex in tree.ancestors(1)] == [0]
+        assert len(tree.subgraph.edges) == len(tree.nodes) - 1
+        assert tree.covers(full).half_edge_indices() == full.half_edge_indices()
+        non_tree = [
+            half
+            for half in cross.half_edges
+            if half.id not in tree.subgraph.half_edge_indices()
+        ]
+        assert non_tree
+        fundamental = tree.fundamental_cycle(non_tree[0].id)
+        assert fundamental.is_connected() and len(fundamental.edges) == 2
+        assert tree.fundamental_cycle(tree.subgraph.half_edge_indices()[0]) is None
+        assert (
+            traverse(
+                0,
+                include=next(half.id for half in cross.half_edges if half.vertex == 0),
+            )
+            .nodes[0]
+            .id
+            == 0
+        )
+    foreign = hep.FeynmanDiagram.from_json(scalar, original).subgraph(nodes=[0])
+    for operation, error_type in (
+        (lambda: cross.subgraph(object()), TypeError),
+        (lambda: cross.subgraph(foreign), ValueError),
+        (lambda: tree.covers(foreign), ValueError),
+        (lambda: cross.subgraph(nodes=[99]), IndexError),
+        (lambda: cross.subgraph(edges=[99]), IndexError),
+        (lambda: cross.subgraph(half_edges=[99]), IndexError),
+        (lambda: cross.depth_first_traverse(99), IndexError),
+        (lambda: cross.depth_first_traverse(0, include=99), IndexError),
+        (lambda: empty.depth_first_traverse(0), ValueError),
+        (lambda: full.all_bonds(min_size=0), ValueError),
+        (lambda: full.all_bonds(min_size=2, max_size=1), ValueError),
+        (lambda: full.all_cuts([], [1]), ValueError),
+        (lambda: full.all_cuts([0], [0]), ValueError),
+        (lambda: full.all_cuts([99], [1]), IndexError),
+    ):
+        try:
+            operation()
+        except error_type:
+            pass
+        else:
+            raise AssertionError("invalid native graph input was accepted")
+    assert cross.to_json() == original
+    # Zero-crown interactions survive selection, component/forest results, and
+    # singleton traversals even though they have no half-edge bit to select.
+    zero_model = json.loads(scalar.to_json())
+    zero_model["vertex_rules"][0]["particles"] = []
+    zero_model["lorentz_structures"][0]["spins"] = []
+    zero_scalar = hep.Model.from_json(json.dumps(zero_model))
+    isolated = hep.FeynmanDiagram.from_dot(
+        zero_scalar, "digraph isolated { a [num=2]; b [num=3]; }"
+    )
+    assert not isolated.is_connected()
+    components = isolated.connected_components()
+    assert [component.isolated_node_indices() for component in components] == [[0], [1]]
+    assert isolated.subgraph(
+        nodes=[0]
+    ).numerator_expression() == spenso.TensorExpression(2)
+    assert isolated.filter(
+        node=lambda vertex: vertex.id == 1
+    ).isolated_node_indices() == [1]
+    assert isolated.all_spanning_forests()[0].isolated_node_indices() == [0, 1]
+    for traverse in (isolated.depth_first_traverse, isolated.breadth_first_traverse):
+        tree = traverse(0)
+        assert [vertex.id for vertex in tree.nodes] == [0]
+        assert tree.subgraph.isolated_node_indices() == [0]
+        assert tree.covers(isolated.subgraph(nodes=[0, 1])).isolated_node_indices() == [
+            0
+        ]
+        assert tree.parent(0) is None and tree.children(0) == tree.ancestors(0) == []
+    tadpole = (
+        hep.Model.phi4()
+        .process(["phi"], ["phi"])
+        .generate_diagrams(
+            loops=1, max_vertices=1, allow_self_loops=True, progress=None
+        )[0]
+    )
+    assert len(tadpole.cycle_basis()[0]) == 1
+    for traverse in (tadpole.depth_first_traverse, tadpole.breadth_first_traverse):
+        tree = traverse(0)
+        assert [vertex.id for vertex in tree.nodes] == [0]
+        internal_half = next(
+            half for half in tadpole.half_edges if not half.edge.is_external
+        )
+        assert len(tree.fundamental_cycle(internal_half.id).edges) == 1
     sewn_identities = None
     for split in (False, True):
-        svg = cross.render(config={"template_options": {"split-initial-state": split}})
+        svg = cross.render(
+            config=hep.RenderSettings(split_initial_state=split)
+        ).to_svg()
         root = ET.fromstring(svg)
         targets = [n for n in root.iter() if "data-linnet-kind" in n.attrib]
         identities = {
@@ -135,7 +409,7 @@ try:
     labelled = hep.Model.from_json(json.dumps(custom))
     assert labelled.particle("phi").typstname == "alpha_1"
     assert json.loads(labelled.to_json())["particles"][0]["typstname"] == "alpha_1"
-    ET.fromstring(labelled.process(["phi"], ["phi"]).render())
+    ET.fromstring(labelled.process(["phi"], ["phi"]).render().to_svg())
     parameter = labelled.parameter("g").symbol
     assert "beta_2" in parameter.to_typst()
     assert "g" in spenso.TensorExpression(parameter).to_latex()
@@ -143,7 +417,9 @@ try:
     ET.fromstring(spenso.TensorExpression(parameter).to_svg())
     # Every authored Standard Model label must compile without package access.
     standard = hep.Model.standard_model()
-    ET.fromstring(standard.process([p.name for p in standard.particles], []).render())
+    ET.fromstring(
+        standard.process([p.name for p in standard.particles], []).render().to_svg()
+    )
     all_parameters = sum(p.symbol for p in standard.parameters)
     ET.fromstring(spenso.TensorExpression(all_parameters).to_svg())
     assert not hasattr(sys.modules["symbolica.community"], "linnet")
@@ -154,3 +430,4 @@ try:
     )
 finally:
     builtins.__import__ = original_import
+    sys.meta_path.remove(no_linnet)

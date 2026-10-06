@@ -43,46 +43,57 @@ parameter labels changes presentation only, preserving algebraic names and expre
 
 == Native SVG configuration
 
-Save the SVG directly, or export a self-contained Typst document embedding that
-SVG, including its typeset glyphs. The exported document needs no graph packages.
+`diagram.render(...)` returns a `DiagramRender` that displays the configured
+figure directly in IPython, Jupyter, and Marimo. The result retains its rendered
+SVG and labels, so later display and export reuse the same snapshot.
+Use `to_svg()` or `to_html()` for text exports, or `to_linnest()` for a
+self-contained Typst document embedding the SVG. The exported document needs
+no graph packages.
 
 // docs-example: compile
 ```python
 from pathlib import Path
 
-Path("diagram.svg").write_text(diagram.render(), encoding="utf-8")
-Path("diagram.typ").write_text(diagram.to_linnest(), encoding="utf-8")
-diagram
+drawing = diagram.render()
+Path("diagram.svg").write_text(drawing.to_svg(), encoding="utf-8")
+Path("diagram.typ").write_text(drawing.to_linnest(), encoding="utf-8")
+drawing
 ```
 
-Configuration is a nested Python dictionary. `title` supplies a plain-text title.
-`layouts` accepts native ImPrEd options such as `impred_steps`, `impred_spacing`,
-`impred_repulsion`, and `impred_labels`; underscores and hyphens are equivalent.
-`drawing.node_radius` sets the vertex radius in graph units. `style.node-style`
-accepts `fill`, `radius`, and `stroke`; `style.edge-style` accepts `stroke`.
-A stroke is a CSS color string or a dictionary with `paint`, `thickness` in points,
-and `dash` (`solid`, `dotted`, or `dashed`).
+Pass an immutable `RenderSettings` object as `config`. Its named arguments and
+read-only properties support editor completion and `help(RenderSettings)`.
+Omitted options keep the renderer's defaults. `title` is plain text;
+`node_radius` is in graph units, and `node_fill` is a CSS color.
+`node_stroke` and `edge_stroke` accept a `StrokeStyle` with a CSS `paint`,
+`thickness` in points, and `dash` (`solid`, `dotted`, or `dashed`).
 
-Physics options in `template_options` are booleans: `show-particle`,
-`show-momentum`, `show-edge-index`, `show-node-index`, `momentum-arrows`,
-`split-initial-state`, and `debug` (node and edge indices).
-Unsupported options raise an error. Standalone Linnet configuration objects,
-custom Typst templates, and the older template-specific layout controls do not
-apply to this renderer; those remain features of the standalone drawing tools.
+`LayoutSettings` groups advanced layout controls such as `impred_steps`,
+`impred_spacing`, `impred_repulsion`, and `impred_labels`. Use
+`help(LayoutSettings)` for all options and their defaults. Invalid options and
+numeric values are rejected when constructing settings.
+
+Particle and momentum presentation uses boolean `RenderSettings` arguments:
+`show_particle`, `show_momentum`, `show_edge_index`, `show_node_index`,
+`momentum_arrows`, `split_initial_state`, and `debug` (node and edge indices).
 
 // docs-example: compile
 ```python
-settings = {
-    "layouts": {"impred_steps": 100},
-    "template_options": {"show-particle": False},
-}
+from symbolica.community.hepkit import RenderSettings, LayoutSettings, StrokeStyle
+
+settings = RenderSettings(
+    layout=LayoutSettings(impred_steps=100),
+    show_particle=False,
+    edge_stroke=StrokeStyle(paint="#6f4d85", thickness=1.2),
+)
+drawing = diagram.render(momenta=True, config=settings)
 Path("momenta.svg").write_text(
-    diagram.render(momenta=True, config=settings), encoding="utf-8"
+    drawing.to_svg(), encoding="utf-8"
 )
 basis = next(iter(diagram.loop_momentum_bases()))
 Path("alternative-routing.svg").write_text(
-    diagram.render(lmb=basis, config=settings), encoding="utf-8"
+    diagram.render(lmb=basis, config=settings).to_svg(), encoding="utf-8"
 )
+drawing
 ```
 
 `momenta=True` displays the stored routing. Passing `lmb=basis` enables momentum
@@ -93,7 +104,7 @@ A basis from a different diagram is rejected.
 
 Cross sections open initial-state connections into incoming and outgoing legs by
 default, retaining final-state cut edges. Set
-`{"template_options": {"split-initial-state": False}}` for the sewn view.
+`RenderSettings(split_initial_state=False)` for the sewn view.
 Both views preserve the original edge and half-edge IDs. Configuration is per-call;
 it changes neither the physics graph nor its loop-momentum basis.
 
@@ -119,9 +130,9 @@ diagram, with the remaining graph muted and dotted:
 
 // docs-example: compile
 ```python
-region = diagram.filter(edge=lambda edge: edge.data.particle_name == "b")
+region = diagram.filter(edge=lambda edge: edge.particle_name == "b")
 Path("highlighted-diagram.svg").write_text(
-    region.render(), encoding="utf-8"
+    region.render().to_svg(), encoding="utf-8"
 )
 region
 ```
@@ -142,4 +153,28 @@ for the underlying graph renderer.
 The #link("guides/community-host/")[host guide] describes embedding the renderer
 in a distribution. Optional standalone Linnet graph interoperability is separate
 from rendering and requires that package only when explicitly used.
+
+== Configured amplitude collections
+
+`amplitude.render()` returns an `AmplitudeRender` snapshot that displays directly
+in IPython, Jupyter, and Marimo. `config` accepts the same `RenderSettings` as
+individual diagrams, while `term_settings` controls the weighted tensor notation.
+The default preview shows six contributions; `max_diagrams=None` renders all.
+
+```python
+from symbolica.community.tensor import DisplaySettings
+from symbolica.community.hepkit import RenderSettings
+
+drawing = amplitude.render(
+    config=RenderSettings(show_momentum=True),
+    max_diagrams=3,
+    term_settings=DisplaySettings(show_dimensions=True),
+)
+drawing
+html = drawing.to_html()
+svg = drawing.diagrams[0].to_svg()
+```
+
+The `diagrams` property contains only the rendered contributions, in amplitude
+order. Rendering captures a presentation snapshot and leaves the amplitude intact.
 ]

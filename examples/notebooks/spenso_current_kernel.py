@@ -74,6 +74,7 @@ def _(mo):
     a tensor carrying one index. The arguments `2`, `4` and `2, 4` retain
     the leg labels of $Q(2)$, $G(4)$ and $q_{24}$ in their names; tensor
     indices are assigned when the contractions are formed below.
+    Each listing is followed by its rendered output.
     """)
     return
 
@@ -100,9 +101,9 @@ def _(mo):
     The first contraction forms the bracket in the component expression.
     Spenso orders the indices of a gamma matrix as `(row, column, Lorentz)`.
     Assigning the same label to compatible indices contracts them, so
-    `Q2(1)` joins the row index and `G4(2)` the Lorentz index. We mark the
-    remaining spinor index with `AUTO`, imported as `_`, to connect it to
-    the propagator by multiplication in a later step.
+    `Q2(1)` joins the row index and `G4(2)` the Lorentz index. The placeholder
+    `AUTO`, imported as `_`, leaves the remaining spinor index unresolved
+    so it can be contracted with the propagator in the next step.
     """)
     return
 
@@ -125,8 +126,9 @@ def _(mo):
     Lorentz index is contracted with $q_{24}$, while `q24 * q24` gives
     the denominator $s_{24}$. Here the label `3` is used for both the
     contracted Lorentz index and the open output spinor index. Since they
-    belong to different spaces, these indices remain distinct; the first
-    spinor index is again marked with `_` to receive the vertex contraction.
+    belong to different spaces, these indices remain distinct. The first
+    spinor index is left unresolved with `_`; labelling the output index
+    explicitly makes the subsequent contraction unambiguous.
     """)
     return
 
@@ -144,7 +146,7 @@ def _(gamma, i, q24):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    Multiplication now connects the two spinor indices marked with `_`,
+    Multiplication now contracts the two compatible unresolved spinor indices,
     completing the expression for $Q(2,4)$ with only its output index open.
     This current has a single vertex contribution. For the three-leg
     currents following equation (3.6), the two contributions would first
@@ -184,9 +186,12 @@ def _(current):
 def _(mo):
     mo.md(r"""
     Executing the network carries out the component sums and scalar
-    operations, leaving the input components symbolic. Since `execute()`
-    changes the network in place, we execute a copy so that the original
-    network remains available for inspection.
+    operations, leaving the input components symbolic. From the completed
+    network, `result_tensor()` extracts the four-component current $Q(2,4)$.
+    We display its first component, `Q24[0]`, below; the complete tensor is
+    retained for numerical evaluation. Numeric superscripts in the output
+    label entries in the chosen basis. Line breaks have been added to fit
+    the expression on the page.
     """)
     return
 
@@ -194,33 +199,15 @@ def _(mo):
 @app.cell
 def _(network):
     network.execute()
-    network
-    return
-
-
-@app.cell(hide_code=True)
-def _(mo):
-    mo.md(r"""
-    The completed network now contains the current's component expressions.
-    `result_tensor()` extracts them as the tensor `Q24`, whose open spinor
-    index labels the four expressions for $Q(2,4)_c$. Each includes the
-    momentum-dependent propagator denominator and is ready for numerical
-    evaluation.
-    """)
-    return
-
-
-@app.cell
-def _(network):
     Q24 = network.result_tensor()
-    Q24
+    Q24[0]
     return (Q24,)
 
 
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    These expressions can now be evaluated through the Symbolica interface
+    The full current can now be evaluated through the Symbolica interface
     introduced above. The tensor's `evaluator` method accepts the same
     options as `Expression.evaluator` and optimises all four components
     together. We use `components()` to list its inputs in the order
@@ -236,7 +223,10 @@ def _(G4, Q2, Q24, q24):
     parameters = [*Q2.components(), *G4.components(), *q24.components()]
     evaluator = Q24.evaluator(parameters)
 
-    value = evaluator.evaluate_complex([[1, 0, 0, 0, 0, 0, 1, 0, 2, 1, 0, 1]])[0]
+    quark = [2, 1 - 1j, 0, 0]
+    gluon = [0, 0, 4 / 5, -3 / 5]
+    momentum = [8, 2, 5, 5]
+    value = evaluator.evaluate_complex([[*quark, *gluon, *momentum]])[0]
     value
     return
 
@@ -245,12 +235,18 @@ def _(G4, Q2, Q24, q24):
 def _(mo):
     mo.md(r"""
     The numerical inputs above correspond to lightlike momenta
-    $q_2=(1,0,0,1)$ and $q_4=(1,1,0,0)$, with
-    $Q(2)=(1,0,0,0)$ and $G(4)=(0,0,1,0)$. They satisfy
-    $Q(2)\not q_2=0$ and $q_4\cdot G(4)=0$, with an arbitrary overall
-    spinor normalisation. Since $q_{24}=(2,1,0,1)$ and $s_{24}=2$, the
-    result is $Q(2,4)=(-i/2,-i/2,0,0)$. Only the inputs to this local
-    join are needed for the evaluation.
+    $q_2=(3,2,2,1)$ and $q_4=(5,0,3,4)$, with
+    $Q(2)=(2,1-i,0,0)$ and $G(4)=(0,0,4/5,-3/5)$. The spinor satisfies
+    $Q(2)\not q_2=0$, while the linearly polarised gluon obeys
+    $q_4\cdot G(4)=0$ and $G(4)^2=-1$. The spinor's overall normalisation
+    is arbitrary. Their sum gives $q_{24}=(8,2,5,5)$ and $s_{24}=10$, so
+
+    $$Q(2,4)=\left(\frac{7+9i}{10},\frac{5-3i}{10},0,0\right).$$
+
+    The two vanishing components reflect the chirality of the input
+    spinor, which is preserved by the vertex and massless propagator
+    together. Only the inputs to this local join are needed for the
+    evaluation.
 
     Returning to the recurrence, $Q(2,4)$ supplies both
     $V_{dZd}[Q(2,4),Z(3)]$ in $Q(2,3,4)$ and
@@ -283,8 +279,8 @@ def _(mo):
     momentum-independent four-point construction of the section on general
     contact decomposition, contracting two inputs leaves the intermediate
     tensor $X_{\rho\sigma}$ with two Lorentz indices. Spenso obtains its
-    16 component expressions in the same way as the four expressions
-    above. Symbolica then identifies exact zeros and components related by
+    16 component expressions in the same way as the four spinor components
+    of $Q(2,4)$. Symbolica then identifies exact zeros and components related by
     equality or a sign, giving the one stored representative for the
     metric-pair structure and the six for the antisymmetric four-gluon
     structure discussed there. In the four-gluon case, only the six entries

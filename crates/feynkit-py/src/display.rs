@@ -1,9 +1,12 @@
-use feynkit_graph::{FeynmanDiagram, SceneOptions};
+use feynkit_graph::FeynmanDiagram;
 use feynkit_model::{Model, ParticleId};
-use linnest::svg::{Config, Scene};
+use linnest::svg::Scene;
 
+use crate::render_settings::PyRenderSettings;
 use pyo3::prelude::*;
 use std::{collections::BTreeMap, fmt::Write};
+
+pub use spynso3::display::graph::PyDiagramRender;
 
 pub(crate) fn escape_html(value: &str) -> String {
     let mut escaped = String::with_capacity(value.len());
@@ -18,51 +21,6 @@ pub(crate) fn escape_html(value: &str) -> String {
         }
     }
     escaped
-}
-
-/// Parse the native, serializable SVG configuration.
-pub(crate) fn render_config(py: Python<'_>, config: Option<&Bound<'_, PyAny>>) -> PyResult<Config> {
-    let source = match config {
-        Some(config) => py
-            .import("json")?
-            .call_method1("dumps", (config,))?
-            .extract::<String>()?,
-        None => "{}".into(),
-    };
-    Config::from_json(&source).map_err(pyo3::exceptions::PyValueError::new_err)
-}
-
-pub(crate) fn scene_options(config: &Config, momenta: bool) -> PyResult<SceneOptions> {
-    let mut options = SceneOptions {
-        momentum_arrows: momenta,
-        ..Default::default()
-    };
-    for (key, value) in &config.template_options {
-        if key == "mode" && value.as_str() == Some("auto") {
-            continue;
-        }
-        let flag = value.as_bool().ok_or_else(|| {
-            pyo3::exceptions::PyValueError::new_err(format!("{key} must be boolean"))
-        })?;
-        match key.as_str() {
-            "momentum-arrows" => options.momentum_arrows = flag,
-            "show-momentum" => options.show_momentum = Some(flag),
-            "show-particle" => options.show_particle = flag,
-            "show-edge-index" => options.show_edge_index = flag,
-            "show-node-index" => options.show_node_index = flag,
-            "split-initial-state" => options.split_initial_state = flag,
-            "debug" => {
-                options.show_node_index = flag;
-                options.show_edge_index = flag;
-            }
-            _ => {
-                return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                    "unsupported SVG physics option {key:?}"
-                )));
-            }
-        }
-    }
-    Ok(options)
 }
 
 /// Typst handles only label pages; Rust owns all graph layout and geometry.
@@ -144,7 +102,9 @@ pub(crate) fn collection_html(
     subtitle: &str,
     diagrams: impl ExactSizeIterator<Item = crate::graph::PyFeynmanDiagram>,
     terms: Option<&[String]>,
-) -> PyResult<String> {
+    config: Option<&PyRenderSettings>,
+    limit: usize,
+) -> PyResult<(String, Vec<PyDiagramRender>)> {
     let count = diagrams.len();
     let mut html = format!(
         "<style>{}</style><section class=\"feynkit-collection\"><header><strong>{}</strong><small>{}</small></header>",
@@ -156,9 +116,12 @@ pub(crate) fn collection_html(
     if terms.is_none() {
         html.push_str("<div class=\"fk-strip\" role=\"group\" aria-label=\"Choose diagram\">");
     }
-    for (index, diagram) in diagrams.take(PREVIEW_LIMIT).enumerate() {
-        let svg = diagram.render(py, None, false, None, None)?;
+    let mut drawings = Vec::new();
+    for (index, diagram) in diagrams.take(limit).enumerate() {
+        let drawing = diagram.render(py, config, false, None, None)?;
+        let svg = drawing.to_svg();
         write!(templates, "<template>{svg}</template>").unwrap();
+        drawings.push(drawing);
         let label = format!("Diagram {}", index + 1);
         let mut caption = format!(
             "{} · {} loop{}",
@@ -188,8 +151,8 @@ pub(crate) fn collection_html(
     if count == 0 {
         html.push_str("<p>No diagrams retained.</p>");
     }
-    if count > PREVIEW_LIMIT {
-        write!(html, "<small>Showing {PREVIEW_LIMIT} of {count} diagrams. Access .diagrams to inspect the complete collection.</small>").unwrap();
+    if count > limit {
+        write!(html, "<small>Showing {limit} of {count} diagrams. The source collection retains all diagrams.</small>").unwrap();
     }
     write!(
         html,
@@ -197,19 +160,17 @@ pub(crate) fn collection_html(
         include_str!("collection.js")
     )
     .unwrap();
-    Ok(html)
+    Ok((html, drawings))
 }
 
 /// Draw each process channel as a native star graph with a hatched interaction blob.
 pub(crate) fn process_svg(
-    py: Python<'_>,
     model: &Model,
     incoming: &[ParticleId],
     outgoing: &[Vec<ParticleId>],
-    config: Option<&Bound<'_, PyAny>>,
+    config: Option<&PyRenderSettings>,
 ) -> PyResult<String> {
-    let config = render_config(py, config)?;
-    let options = scene_options(&config, false)?;
+    let (config, options) = PyRenderSettings::resolve(config, false);
     let mut figures = Vec::new();
     for state in outgoing {
         let scene = options
