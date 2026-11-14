@@ -273,6 +273,11 @@ where
         self.im.set_from(&other.im);
     }
 
+    #[inline(always)]
+    fn conj(&self) -> Self {
+        Complex::new(self.re.clone(), -self.im.clone())
+    }
+
     #[inline]
     fn set_precision(&mut self, precision: u32) {
         self.re.set_precision(precision);
@@ -378,10 +383,6 @@ where
         + RefOne
         + RefZero,
 {
-    #[inline(always)]
-    fn conj(&self) -> Self {
-        Complex::new(self.re.clone(), -self.im.clone())
-    }
     fn i(&self) -> Option<Self> {
         Some(Complex {
             re: self.re.zero(),
